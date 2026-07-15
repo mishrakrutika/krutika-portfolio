@@ -23,11 +23,31 @@ async function startServer() {
     res.sendFile(path.join(staticPath, "index.html"));
   });
 
-  const port = process.env.PORT || 3000;
+  const requestedPort = Number(process.env.PORT || 3000);
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
-  });
+  const listenOnPort = (port: number): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const onError = (error: NodeJS.ErrnoException) => {
+        if (error.code === "EADDRINUSE" && port < 3100) {
+          console.warn(`Port ${port} is busy, trying ${port + 1}...`);
+          server.off("error", onError);
+          resolve(listenOnPort(port + 1));
+          return;
+        }
+
+        server.off("error", onError);
+        reject(error);
+      };
+
+      server.once("error", onError);
+      server.listen(port, () => {
+        server.off("error", onError);
+        console.log(`Server running on http://localhost:${port}/`);
+        resolve();
+      });
+    });
+
+  await listenOnPort(requestedPort);
 }
 
 startServer().catch(console.error);
