@@ -24,28 +24,32 @@ async function startServer() {
   });
 
   const requestedPort = Number(process.env.PORT || 3000);
+  const maxPort = 3100;
 
-  const listenOnPort = (port: number): Promise<void> =>
-    new Promise((resolve, reject) => {
+  const listenOnPort = async (port: number): Promise<number> => {
+    const listenServer = createServer(app);
+
+    return await new Promise((resolve, reject) => {
       const onError = (error: NodeJS.ErrnoException) => {
-        if (error.code === "EADDRINUSE" && port < 3100) {
+        listenServer.off("error", onError);
+
+        if (error.code === "EADDRINUSE" && port < maxPort) {
           console.warn(`Port ${port} is busy, trying ${port + 1}...`);
-          server.off("error", onError);
           resolve(listenOnPort(port + 1));
           return;
         }
 
-        server.off("error", onError);
         reject(error);
       };
 
-      server.once("error", onError);
-      server.listen(port, () => {
-        server.off("error", onError);
+      listenServer.once("error", onError);
+      listenServer.listen(port, () => {
+        listenServer.off("error", onError);
         console.log(`Server running on http://localhost:${port}/`);
-        resolve();
+        resolve(port);
       });
     });
+  };
 
   await listenOnPort(requestedPort);
 }
